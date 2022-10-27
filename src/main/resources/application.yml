@@ -1,0 +1,41 @@
+server:
+  port: 8899
+  tomcat:
+    uri-encoding: UTF-8
+    max-threads: 1000
+    min-spare-threads: 30
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+      enabled: true
+spring:
+  mvc:
+    servlet:
+      load-on-startup: 1
+    #    favicon:
+    #      enabled: false
+    throw-exception-if-no-handler-found: true
+    static-path-pattern: /static/**
+  servlet:
+      multipart:
+        max-file-size: 1024MB
+        max-request-size: 2048MB
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+logging:
+  file:
+    name: log/service.log
+  level:
+    root: info
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} %msg%n'
+    file: '%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} %msg%n'
+    dateformat: 'yyyy-MM-dd HH:mm:ss'
+  logback:
+    rollingpolicy:
+      max-history: 30
+      max-file-size: 50MB
+credentials:
+  access-key:
+  secret-key:
