@@ -207,8 +207,8 @@ class AppMonitorScheduledTasks {
      * [秒] [分] [小时] [日] [月] [周] [年]
      */
 //    @Scheduled(cron = "*/2 * * * * ?")
-//    @Scheduled(cron = "0 */5 * ? * *")
-    @Scheduled(cron = "0/3 * * * * *")
+//    @Scheduled(cron = "0/3 * * * * *")
+    @Scheduled(cron = "0 */5 * ? * *")
     fun runMonitorTask() {
         if (jsonData.isEmpty()) {
             runInvalidJsonData {
