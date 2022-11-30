@@ -13,6 +13,7 @@ java.sourceCompatibility = JavaVersion.VERSION_11
 
 repositories {
     mavenCentral()
+    maven("https://jitpack.io" )
 }
 
 extra["springCloudVersion"] = "2021.0.4"
@@ -29,6 +30,17 @@ dependencies {
     // https://mvnrepository.com/artifact/com.amazonaws/aws-java-sdk
     implementation("com.amazonaws:aws-java-sdk:1.12.328")
     implementation("com.google.code.gson:gson:2.10")
+    implementation ("com.squareup.okhttp3:okhttp:4.10.0")
+    implementation ("com.squareup.okio:okio:3.2.0")
+    implementation ("com.github.peihua8858:KotlinUtil:1.0.0")
+    implementation ("com.github.peihua8858:GsonAdapter-java:1.0.2")
+    //阿里云短信群发sdk
+    implementation ("com.aliyun:aliyun-java-sdk-core:4.6.1")
+//    implementation 'com.aliyun:dyvmsapi20170525:2.1.4'
+    implementation ("com.aliyun:dysmsapi20170525:2.0.18")
+//    implementation("org.apache.commons:commons-lang3:3.12.0")
+    implementation("commons-io:commons-io:2.5")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
 //    implementation ("org.springframework.cloud:spring-cloud-starter-aws")
 //    implementation ("org.springframework.cloud:spring-cloud-starter-aws-messaging")
 //    implementation ("org.springframework.cloud:spring-cloud-starter-aws-parameter-store-config")

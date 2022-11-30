@@ -1,5 +1,6 @@
 package com.example.uploadfileserver
 
+import com.example.uploadfileserver.UploadFileServerApplication.Companion.readRootFileFolder
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.converter.HttpMessageConverter
@@ -30,6 +31,7 @@ class WebMvcConfig : WebMvcConfigurer {
         registry.addResourceHandler("/images/**").addResourceLocations("classpath:/static/")
         registry.addResourceHandler("/webjars/**")
             .addResourceLocations("classpath:/META-INF/resources/webjars/")
+       this.readRootFileFolder()
     }
 
     override fun configureMessageConverters(converters: MutableList<HttpMessageConverter<*>?>) {
