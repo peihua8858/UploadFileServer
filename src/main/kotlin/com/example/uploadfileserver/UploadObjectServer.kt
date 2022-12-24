@@ -47,7 +47,7 @@ class UploadObjectServer @Autowired constructor(private val amazonS3: AmazonS3) 
             metadata.contentType = optionalMetaData?.get(Headers.CONTENT_TYPE) ?: "image/jpeg"
             val result = amazonS3.putObject(bucketName, finalFileName, inputStream, metadata)
             val s3Url: URL = amazonS3.getUrl(bucketName, finalFileName)
-            println("s3Url->$s3Url")
+            iLog {"s3Url->$s3Url"}
             return s3Url
         } catch (e: AmazonServiceException) {
             throw IllegalStateException("Failed to upload the file", e)

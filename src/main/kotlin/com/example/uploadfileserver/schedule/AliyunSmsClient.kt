@@ -5,6 +5,8 @@ import com.aliyun.dysmsapi20170525.models.SendSmsRequest
 import com.aliyun.tea.TeaModel
 import com.aliyun.teaopenapi.models.Config
 import com.aliyun.teautil.Common
+import com.example.uploadfileserver.eLog
+import com.example.uploadfileserver.iLog
 
 /**
  * 阿里云短信服务
@@ -41,10 +43,14 @@ object AliyunSmsClient {
      */
     fun sendMessage(phoneNumbers: String, params: SmsTemplateParams) {
         if (params.accessKeyId.isEmpty() || params.accessKeySecret.isEmpty()) {
-            throw RuntimeException("accessKeyId or accessKeySecret is empty.")
+            val e = RuntimeException("accessKeyId or accessKeySecret is empty.")
+            eLog(e) { "accessKeyId or accessKeySecret is empty." }
+            throw e
         }
         if (params.signName.isEmpty() || params.templateCode.isEmpty()) {
-            throw RuntimeException("signName or templateCode is empty.")
+            val e = RuntimeException("signName or templateCode is empty.")
+            eLog(e) { "signName or templateCode is empty." }
+            throw e
         }
         //可能线上生产环境已出现故障,请立即处理！
         val client: Client = createClient(params.accessKeyId, params.accessKeySecret)
@@ -54,7 +60,7 @@ object AliyunSmsClient {
         sendSmsRequest.setTemplateCode(params.templateCode)
         sendSmsRequest.setTemplateParam(params.toString())
         val resp = client.sendSms(sendSmsRequest)
-        println(Common.toJSONString(TeaModel.buildMap(resp)))
+        iLog{ Common.toJSONString(TeaModel.buildMap(resp)) }
     }
 }
 

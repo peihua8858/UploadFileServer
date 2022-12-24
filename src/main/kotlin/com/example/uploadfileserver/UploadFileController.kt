@@ -20,7 +20,7 @@ class UploadFileController @Autowired constructor(private val uploadObjectServer
     @RequestMapping("/file")
     @ResponseBody
     fun uploadFile(@RequestParam("file") file: MultipartFile): String {
-        println(">>>>>>>>>>uploadFile:" + file.originalFilename)
+        iLog {">>>>>>>>>>uploadFile:" + file.originalFilename}
         val metadata = mutableMapOf<String, String>()
         metadata["Content-Type"] = file.contentType ?: "image/*"
         metadata["Content-Length"] = file.size.toString()

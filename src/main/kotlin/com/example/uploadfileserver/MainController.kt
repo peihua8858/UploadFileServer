@@ -4,9 +4,15 @@ import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.RequestMapping
 
 @Controller
+@RequestMapping(*["/"])
 class MainController {
     @RequestMapping("index")
     fun home(): String {
-        return "/templates/index.html"
+        return "index.html"
+    }
+
+    @RequestMapping("log")
+    fun logcat(): String {
+        return "logcat.html"
     }
 }

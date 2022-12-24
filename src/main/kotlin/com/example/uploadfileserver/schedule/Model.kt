@@ -78,5 +78,5 @@ data class TasksResponse(
     val response: ResponseResult? = null
 )
 
-data class PhoneNumber(val phoneNumber: String, val name: String) : Serializable
+data class PhoneNumber(val phoneNumber: String, val name: String,val jobNumber:String) : Serializable
 data class ResponseResult(val requestId: String, val resultNum: Int, val resultCode: Int, val message: String)

@@ -36,7 +36,7 @@ class WebMvcConfig : WebMvcConfigurer {
 
     override fun configureMessageConverters(converters: MutableList<HttpMessageConverter<*>?>) {
         //先清掉框架自带的jackson
-        converters.clear()
+//        converters.clear()
         converters.add(StringHttpMessageConverter(StandardCharsets.UTF_8))
     }
 
@@ -56,14 +56,14 @@ class WebMvcConfig : WebMvcConfigurer {
     /**
      * 开启跨域
      */
-    override fun addCorsMappings(registry: CorsRegistry) {
-        // 设置允许跨域的路由
-        registry.addMapping("/**") // 设置允许跨域请求的域名
-            .allowedOriginPatterns("*") // 是否允许证书（cookies）
-            .allowCredentials(true) // 设置允许的方法
-            .allowedMethods("*") // 跨域允许时间
-            .maxAge(3600)
-    }
+//    override fun addCorsMappings(registry: CorsRegistry) {
+//        // 设置允许跨域的路由
+//        registry.addMapping("/**") // 设置允许跨域请求的域名
+//            .allowedOriginPatterns("*") // 是否允许证书（cookies）
+//            .allowCredentials(true) // 设置允许的方法
+//            .allowedMethods("*") // 跨域允许时间
+//            .maxAge(3600)
+//    }
 
     @Bean
     fun localeResolver(): LocaleResolver {

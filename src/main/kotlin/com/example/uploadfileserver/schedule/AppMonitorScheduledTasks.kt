@@ -2,14 +2,14 @@ package com.example.uploadfileserver.schedule
 
 import com.example.uploadfileserver.UploadFileServerApplication.Companion.readFile
 import com.example.uploadfileserver.Utils
+import com.example.uploadfileserver.eLog
+import com.example.uploadfileserver.iLog
 import com.fz.common.array.isNonEmpty
 import com.fz.common.map.copyOfMapList
-import com.fz.common.utils.toDouble
 import com.google.gson.reflect.TypeToken
 import com.peihua8858.GsonFactory
 import kotlinx.coroutines.*
 import org.apache.commons.io.FileUtils
-import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.io.File
@@ -27,18 +27,6 @@ import kotlin.concurrent.thread
  */
 @Component
 class AppMonitorScheduledTasks {
-    private var failRate: Double = 0.6
-    private var failRateMap: MutableMap<String, Double> = mutableMapOf()
-    private var botUrl: String = ""
-
-    /**
-     * 企业微信消息模板
-     */
-    private var messageTemplate: String = ""
-    private var templateCode: String = ""
-    private var signName: String = ""
-    private var accessKeyId: String = ""
-    private var accessKeySecret: String = ""
     private val lock: Any = Any()
     private val jsonData = mutableMapOf<String, MutableMap<String, MutableList<MonitorData>>>()
 
@@ -49,10 +37,9 @@ class AppMonitorScheduledTasks {
     private val jsonDataToken = object : TypeToken<Map<String, MutableList<MonitorData>>>() {
     }
     private val poolExecutor = ScheduledThreadPoolExecutor(5)
+    private var monitorConfig: MonitorConfig = MonitorConfig()
 
     companion object {
-        private  val LOG = LoggerFactory.getLogger(AppMonitorScheduledTasks::class.java)
-        const val MESSAGE_TEMPLATE = "{0}接口错误率{1}，错误信息:{2}，涉及接口{3}，可能线上生产环境已出现故障,请立即处理！"
         private const val MONITOR_FILE = "monitor"
     }
 
@@ -61,29 +48,24 @@ class AppMonitorScheduledTasks {
             if (loadingJsonData) {
                 return
             }
-            loadingJsonData = true
-            jsonData.clear()
-            phoneNumbers.clear()
-            phoneNumbers.putAll(parseJson("phone_numbers_data", phoneNumberToken))
-            val result = readConfig()
-            failRate = result["fail_rate"].toDouble()
-            failRateMap = result["fail_rates"] as MutableMap<String, Double>
-            LOG.info("MonitorScheduledTasks>>读取阈值配置：${failRate}")
-            botUrl = result["bot_url"].toString()
-            LOG.info("MonitorScheduledTasks>>读取机器人配置：${botUrl}")
-            messageTemplate = result["msg_template"].toString()
-            messageTemplate = messageTemplate.ifEmpty { MESSAGE_TEMPLATE }
-            LOG.info("MonitorScheduledTasks>>读取模板配置：${messageTemplate}")
-            templateCode = result["template_code"].toString()
-            signName = result["sign_name"].toString()
-            accessKeyId = result["access_key_id"].toString()
-            accessKeySecret = result["access_key_secret"].toString()
-            if (failRate <= 0.0) {
-                failRate = 0.6
+            try {
+                loadingJsonData = true
+                jsonData.clear()
+                phoneNumbers.clear()
+                phoneNumbers.putAll(parseJson("phone_numbers_data", phoneNumberToken))
+                monitorConfig = readNewConfig()
+                monitorConfig.phoneNumbers = phoneNumbers
+                parseJsonData()
+                loadingJsonData = false
+                callback(jsonData)
+            } catch (e: Throwable) {
+                //异常清除数据，下次重新读取
+                phoneNumbers.clear()
+                jsonData.clear()
+                loadingJsonData = false
+                e.printStackTrace()
+//                eLog(e) { "MonitorScheduledTasks>>读取配置文件失败。" }
             }
-            parseJsonData()
-            loadingJsonData = false
-            callback(jsonData)
         }
     }
 
@@ -100,10 +82,10 @@ class AppMonitorScheduledTasks {
         this.jsonData.putAll(jsonData)
     }
 
-    private fun readConfig(): Map<String, Any> {
-        val map = Utils.readYml(readFile("$MONITOR_FILE/config.yml").absolutePath)
-        LOG.info("MonitorScheduledTasks>>读取配置文件成功：{0}", map)
-        return map
+    private fun readNewConfig(): MonitorConfig {
+        val result = Utils.readYmlByObject(readFile("$MONITOR_FILE/config.yml"), MonitorConfig::class.java)
+        iLog { "MonitorScheduledTasks>>读取配置文件成功：{0}$result" }
+        return result
     }
 
     /**
@@ -121,7 +103,8 @@ class AppMonitorScheduledTasks {
             val jsonFile = readFile("$MONITOR_FILE/$jsonName.json")
             return parseJson(jsonFile, rawType)
         } catch (e: Exception) {
-            LOG.info("MonitorScheduledTasks>>读取配置文件成功:${e.message}")
+            eLog(e) { "MonitorScheduledTasks>>读取配置文件失败:${e.message}" }
+//            LOG.error("MonitorScheduledTasks>>读取配置文件成功:${e.message}")
         }
         return mutableMapOf()
     }
@@ -140,7 +123,7 @@ class AppMonitorScheduledTasks {
         try {
             val jsonContent = FileUtils.readFileToString(jsonFile, "utf-8")
             if (jsonContent.isNullOrEmpty()) {
-                LOG.info("MonitorScheduledTasks>>读取数据为空。")
+                eLog { "MonitorScheduledTasks>>读取数据为空。" }
                 return mutableMapOf()
             }
             val gsonBuilder = GsonFactory.defaultBuilder()
@@ -148,12 +131,12 @@ class AppMonitorScheduledTasks {
             val datas: MutableMap<String, MutableList<T>>? =
                 gsonBuilder.create().fromJson(jsonContent, rawType.type)
             if (datas.isNullOrEmpty()) {
-                LOG.info("MonitorScheduledTasks>>解析数据为空。")
+                eLog { "MonitorScheduledTasks>>解析数据为空。" }
                 return mutableMapOf()
             }
             return datas
         } catch (e: Exception) {
-            LOG.info("MonitorScheduledTasks>>读取配置文件成功:${e.message}")
+            eLog(e) { "MonitorScheduledTasks>>读取配置文件失败:${e.message}" }
         }
         return mutableMapOf()
     }
@@ -167,27 +150,17 @@ class AppMonitorScheduledTasks {
     fun scheduleTask(taskName: String, jsonData: MutableMap<String, MutableList<MonitorData>>) {
         poolExecutor.execute {
             val tempJsonData = jsonData
-            LOG.info("MonitorScheduledTasks>>start task $taskName")
+            iLog { "MonitorScheduledTasks>>start task $taskName" }
             val data = tempJsonData.copyOfMapList()
             runTaskProcessor(data)
-            LOG.info("MonitorScheduledTasks>>start task $taskName")
+            iLog { "MonitorScheduledTasks>>end task $taskName" }
         }
     }
 
     fun runTaskProcessor(data: Map<String, MutableList<MonitorData>>) = thread {
-        LOG.info("MonitorScheduledTasks>>job start")
-        TaskProcessor(
-            failRate,
-            messageTemplate,
-            botUrl,
-            failRateMap,
-            templateCode,
-            signName,
-            accessKeyId,
-            accessKeySecret,
-            phoneNumbers
-        ).runDataProcess(data)
-        LOG.info("MonitorScheduledTasks>>job Done>>>")
+        iLog { "MonitorScheduledTasks>>job start" }
+        TaskProcessor(monitorConfig).runDataProcess(data)
+        iLog { "MonitorScheduledTasks>>job Done>>>" }
     }
 
     /**
@@ -197,7 +170,7 @@ class AppMonitorScheduledTasks {
     @Scheduled(cron = "0 */12 * ? * *")
     fun runInvalidJsonData() {
         runInvalidJsonData {
-            LOG.info("MonitorScheduledTasks>>读取配置文件成功")
+            iLog { "MonitorScheduledTasks>>读取配置文件成功" }
         }
     }
 
@@ -207,12 +180,12 @@ class AppMonitorScheduledTasks {
      * [秒] [分] [小时] [日] [月] [周] [年]
      */
 //    @Scheduled(cron = "*/2 * * * * ?")
-//    @Scheduled(cron = "0/3 * * * * *")
+//    @Scheduled(cron = "0/10 * * * * *")
     @Scheduled(cron = "0 */5 * ? * *")
     fun runMonitorTask() {
         if (jsonData.isEmpty()) {
             runInvalidJsonData {
-                LOG.info("MonitorScheduledTasks>>读取配置文件成功")
+                iLog { "MonitorScheduledTasks>>读取配置文件成功" }
                 scheduleTask(it)
             }
             return

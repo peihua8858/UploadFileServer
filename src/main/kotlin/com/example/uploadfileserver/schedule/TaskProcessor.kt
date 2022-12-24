@@ -1,50 +1,32 @@
 package com.example.uploadfileserver.schedule
 
 import com.example.uploadfileserver.JSON
+import com.example.uploadfileserver.eLog
 import com.example.uploadfileserver.http.CodeException
-import com.example.uploadfileserver.http.HttpMethod
 import com.example.uploadfileserver.http.OkHttpProxy
+import com.example.uploadfileserver.iLog
 import com.fz.common.collections.isNonEmpty
-import com.fz.common.map.deepClone
 import com.fz.common.map.isNonEmpty
+import com.fz.common.text.isNonEmpty
 import com.fz.common.utils.toInteger
-import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import okhttp3.Response
-import org.slf4j.LoggerFactory
-import java.text.MessageFormat
 import kotlin.random.Random
 
-class TaskProcessor(
-    private val failRate: Double,
-    private var messageTemplate: String,
-    private var botUrl: String,
-    private var failRateMap: MutableMap<String, Double>,
-    private var templateCode: String = "",
-    private var signName: String = "",
-    private var accessKeyId: String = "",
-    private var accessKeySecret: String = "",
-    private var phoneNumbers: MutableMap<String, MutableList<PhoneNumber>>
-) {
+class TaskProcessor(private val monitorConfig: MonitorConfig) {
     /**
      * 用于调试，避免在调试时发送测试信息
      */
     private var isDebug: Boolean = false
-    private var isSendMessage: Boolean = true
     private val manager = OkHttpProxy.getX509TrustManager()
     private val httpPoxy = OkHttpProxy(OkHttpClient.Builder()
         .hostnameVerifier { _, _ -> true }
         .sslSocketFactory(OkHttpProxy.getSslSocketFactory(manager), manager)
         .build())
 
-    companion object {
-        private val LOG = LoggerFactory.getLogger(TaskProcessor::class.java)
-        const val MESSAGE_TEMPLATE = "{0}接口错误率{1}，错误信息:{2}，涉及接口{3}，可能线上生产环境已出现故障,请立即处理！"
-    }
-
     fun runDataProcess(jsonDatas: Map<String, MutableList<MonitorData>>) {
         if (jsonDatas.isEmpty()) {
-            LOG.info("MonitorScheduledTasks>>解析数据为空。")
+            eLog {"MonitorScheduledTasks>>解析数据为空。"}
             return
         }
         jsonDatas.forEach {
@@ -59,12 +41,12 @@ class TaskProcessor(
     }
 
     private fun parseResult(project: String, dataSize: Int, result: MutableMap<Int, MutableList<TasksResponse>>) {
-        val failRate = failRateMap[project] ?: failRate
+        val failRate = monitorConfig.failRates[project] ?: monitorConfig.failRate
         result.forEach { itemResponses ->
             val responses = itemResponses.value
             val resultSize = responses.size
             if (dataSize == 0 || resultSize == 0) {
-                LOG.info("MonitorScheduledTasks>>解析数据为空。")
+                iLog {"MonitorScheduledTasks>>解析数据为空。"}
                 return@forEach
             }
             val apiDescSb = StringBuilder()
@@ -73,9 +55,9 @@ class TaskProcessor(
             apiDescSb.append("(")
             val r = resultSize / dataSize.toDouble()
             val rate = (r * 100f).toInt()
-            LOG.info("MonitorScheduledTasks>>监控失败率全局阈值:$failRate")
-            LOG.info("MonitorScheduledTasks>>失败数:$resultSize，总数:$dataSize，失败率:$rate%")
-            LOG.info("MonitorScheduledTasks>>监控失败率阈值:$failRate")
+            iLog { "MonitorScheduledTasks>>监控失败率全局阈值:$failRate" }
+            iLog { "MonitorScheduledTasks>>失败数:$resultSize，总数:$dataSize，失败率:$rate%" }
+            iLog { "MonitorScheduledTasks>>监控失败率阈值:$failRate" }
             if (r >= failRate) {
                 responses.forEach { response ->
                     val request = response.request
@@ -87,29 +69,41 @@ class TaskProcessor(
                         val msg = response.message
                         responseMsg += if (msg.isEmpty()) "" else "-$msg"
                     }
-                    apiDescSb.append(request.apiDesc).append("，")
+                    if (request.apiDesc.isNonEmpty()) {
+                        apiDescSb.append(request.apiDesc).append("，")
+                    }
                 }
                 apiDescSb.deleteCharAt(apiDescSb.length - 1)
                 apiDescSb.append(")")
                 val errorRate = "$rate%($resultSize/$dataSize)"
                 val apiDesc = apiDescSb.toString()
-                //"{0}接口错误率{1}，错误信息:{2}，涉及接口{3}，可能线上生产环境已出现故障,请立即处理！"
-                val content = MessageFormat.format(
-                    messageTemplate,
+                ISendMessage.postMessage(
+                    project,
+                    monitorConfig,
                     projectName,
-                    errorRate, responseMsg,
-                    apiDesc
+                    errorRate,
+                    responseMsg,
+                    apiDesc,
+                    "具体查看企业微信"
                 )
-                LOG.info("MonitorScheduledTasks>>发送监控信息：$content")
-                //发送企业微信信息
-                sendBotMessage(botUrl, content)
-                //发送短信
-                sendSmsMessage(
-                    project, SmsTemplateParams(
-                        accessKeyId, accessKeySecret, templateCode, signName,
-                        projectName, errorRate, responseMsg, "具体查看企业微信"
-                    )
-                )
+
+                //"{0}接口错误率{1}，错误信息:{2}，涉及接口{3}，可能线上生产环境已出现故障,请立即处理！"
+//                val content = MessageFormat.format(
+//                    messageTemplate,
+//                    projectName,
+//                    errorRate, responseMsg,
+//                    apiDesc
+//                )
+//                LOG.info("MonitorScheduledTasks>>发送监控信息：$content")
+//                //发送企业微信信息
+//                sendBotMessage(botUrl, content)
+//                //发送短信
+//                sendSmsMessage(
+//                    project, SmsTemplateParams(
+//                        accessKeyId, accessKeySecret, templateCode, signName,
+//                        projectName, errorRate, responseMsg, "具体查看企业微信"
+//                    )
+//                )
             }
         }
     }
@@ -118,6 +112,7 @@ class TaskProcessor(
         CodeException(200, "Success"),
         CodeException(500, "Internal Server Error"),
         CodeException(501, "Not Implemented"),
+
         CodeException(502, "Bad Gateway"),
         CodeException(503, "Service Unavailable"),
         CodeException(504, "Gateway Timeout"),
@@ -136,7 +131,7 @@ class TaskProcessor(
         params: MonitorData
     ) {
         val url = addTime(params.url, params.isPenetrateCache)
-        LOG.info("MonitorScheduledTasks>>开始请求：$url")
+        iLog {"MonitorScheduledTasks>>开始请求：$url"}
         val response = if (isDebug) {
             val exception = codes[Random.nextInt(codes.size)]
             TasksResponse(exception.code, exception.message ?: "", params)
@@ -154,7 +149,7 @@ class TaskProcessor(
 
     private fun requestApi(url: String, params: MonitorData): TasksResponse? {
         val response = requestHttp(url, params)
-        LOG.info("MonitorScheduledTasks>>请求结果：code：${response.code},message：${response.message}")
+        iLog {"MonitorScheduledTasks>>请求结果：code：${response.code},message：${response.message}"}
         if (response.isSuccessful) {
             val patch = params.patch
             if (patch != null) {
@@ -226,46 +221,45 @@ class TaskProcessor(
         return node
     }
 
-    fun sendSmsMessage(project: String, message: SmsTemplateParams) {
-        val phoneNumbers = phoneNumbers.deepClone()
-        if (phoneNumbers.isNullOrEmpty() || !isSendMessage) {
-            LOG.info("MonitorScheduledTasks>>" + if (phoneNumbers.isNullOrEmpty()) "未设置联系人列表为空!" else "当前是Debug")
-            return
-        }
-        val result = phoneNumbers[project]
-        if (result.isNullOrEmpty()) {
-            LOG.info("MonitorScheduledTasks>>项目：$project 联系人列表为空!")
-            return
-        }
-        try {
-            AliyunSmsClient.sendMessage(result.joinToString(",") { it.phoneNumber }, message)
-        } catch (e: Exception) {
-            LOG.info("MonitorScheduledTasks>>发送短信失败：${e.message}")
-        }
-    }
-
-    fun sendBotMessage(botUrl: String, message: String) {
-        if (botUrl.isEmpty() || !isSendMessage) {   //没有配置botUrl，不发送
-            LOG.info("MonitorScheduledTasks>>" + if (botUrl.isEmpty()) "企业微信机器人地址未配置!" else "当前是Debug")
-            return
-        }
-        val params = mutableMapOf<String, Any>()
-        params["msgtype"] = "text"
-        val params2 = mutableMapOf<String, Any>()
-        params2["content"] = "$message\r\n\r\n（消息由BOT机器人自动发出）"
-        params2["mentioned_list"] = arrayOf("@all")
-        params["text"] = params2
-        println(Gson().toJson(params))
-        httpPoxy.sendRequest(HttpMethod.POST, botUrl, Gson().toJson(params), object : AbstractOkCallback<String>() {
-            override fun onSuccess(response: String?) {
-                LOG.info("MonitorScheduledTasks>>发送bot消息成功：$response")
-            }
-
-            override fun onFailure(e: Throwable?) {
-                LOG.info("MonitorScheduledTasks>>发送bot消息失败：${e?.message}")
-            }
-        })
-    }
+//    fun sendSmsMessage(project: String, message: SmsTemplateParams) {
+//        val phoneNumbers = phoneNumbers.deepClone()
+//        if (phoneNumbers.isNullOrEmpty() || !isSendMessage) {
+//            LOG.error("MonitorScheduledTasks>>" + if (phoneNumbers.isNullOrEmpty()) "未设置联系人列表为空!" else "当前是Debug")
+//            return
+//        }
+//        val result = phoneNumbers[project]
+//        if (result.isNullOrEmpty()) {
+//            LOG.error("MonitorScheduledTasks>>项目：$project 联系人列表为空!")
+//            return
+//        }
+//        try {
+//            AliyunSmsClient.sendMessage(result.joinToString(",") { it.phoneNumber }, message)
+//        } catch (e: Exception) {
+//            LOG.error("MonitorScheduledTasks>>发送短信失败：${e.message}")
+//        }
+//    }
+//    fun sendBotMessage(botUrl: String, message: String) {
+//        if (botUrl.isEmpty() || !isSendMessage) {   //没有配置botUrl，不发送
+//            LOG.error("MonitorScheduledTasks>>" + if (botUrl.isEmpty()) "企业微信机器人地址未配置!" else "当前是Debug")
+//            return
+//        }
+//        val params = mutableMapOf<String, Any>()
+//        params["msgtype"] = "text"
+//        val params2 = mutableMapOf<String, Any>()
+//        params2["content"] = "$message\r\n\r\n（消息由BOT机器人自动发出）"
+//        params2["mentioned_list"] = arrayOf("@all")
+//        params["text"] = params2
+//        println(Gson().toJson(params))
+//        httpPoxy.sendRequest(HttpMethod.POST, botUrl, Gson().toJson(params), object : AbstractOkCallback<String>() {
+//            override fun onSuccess(response: String?) {
+//                LOG.info("MonitorScheduledTasks>>发送bot消息成功：$response")
+//            }
+//
+//            override fun onFailure(e: Throwable?) {
+//                LOG.error("MonitorScheduledTasks>>发送bot消息失败：${e?.message}")
+//            }
+//        })
+//    }
 
     private fun addTime(url: String, addRealTime: Boolean = false): String {
         if (addRealTime) {
