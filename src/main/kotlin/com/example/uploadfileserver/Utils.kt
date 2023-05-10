@@ -11,6 +11,8 @@ import org.springframework.boot.system.ApplicationHome
 import org.springframework.core.io.FileSystemResource
 import java.io.File
 import java.io.FileNotFoundException
+import kotlin.reflect.KClass
+import kotlin.reflect.full.memberProperties
 
 private val LOG: Log = LogFactory.getLog(Utils::class.java)
 private val objectMapper: ObjectMapper by lazy {
@@ -67,4 +69,30 @@ fun Any?.toJson(): String {
         LOG.error("Failed to toJson with {0}", e)
     }
     return ""
+}
+
+fun String.messageFormat(params: Any): String {
+    var r = this
+    val result = if (params !is Map<*, *>) {
+        params.toMap()
+    } else params
+    for (item in result) {
+        val key = item.key
+        val value = item.value
+        r = r.replace(Regex("\\$\\{$key}"), value.toString())
+    }
+    return r
+}
+
+fun <T : Any> T.toMap(): Map<String, Any?> {
+    val r = this
+    return (this::class as KClass<T>).memberProperties.associate { prop ->
+        prop.name to prop.get(r)?.let { value ->
+            if (value::class.isData) {
+                value.toMap()
+            } else {
+                value
+            }
+        }
+    }
 }

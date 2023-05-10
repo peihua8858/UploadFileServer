@@ -1,5 +1,6 @@
 package com.example.uploadfileserver
 
+import com.example.uploadfileserver.UploadFileServerApplication.Companion.readFileFolder
 import com.example.uploadfileserver.UploadFileServerApplication.Companion.readRootFileFolder
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -10,6 +11,7 @@ import org.springframework.web.servlet.LocaleResolver
 import org.springframework.web.servlet.config.annotation.*
 import org.springframework.web.servlet.i18n.LocaleChangeInterceptor
 import org.springframework.web.servlet.i18n.SessionLocaleResolver
+import java.io.File
 import java.nio.charset.StandardCharsets
 import java.util.*
 
@@ -23,7 +25,6 @@ class WebMvcConfig : WebMvcConfigurer {
     override fun addResourceHandlers(registry: ResourceHandlerRegistry) {
         // 将templates目录下的CSS、JS文件映射为静态资源，防止Spring把这些资源识别成thymeleaf模版
         registry.addResourceHandler("/static/**").addResourceLocations("classpath:/static/")
-        registry.addResourceHandler("/docs/**").addResourceLocations("classpath:/docs/")
         registry.addResourceHandler("/templates/**").addResourceLocations("classpath:/templates/")
         registry.addResourceHandler("/fonts/**").addResourceLocations("classpath:/static/")
         registry.addResourceHandler("/css/**").addResourceLocations("classpath:/static/")
@@ -31,7 +32,26 @@ class WebMvcConfig : WebMvcConfigurer {
         registry.addResourceHandler("/images/**").addResourceLocations("classpath:/static/")
         registry.addResourceHandler("/webjars/**")
             .addResourceLocations("classpath:/META-INF/resources/webjars/")
-       this.readRootFileFolder()
+        readRootFileFolder()
+        try {
+            val parentFile: File = readRootFileFolder()
+            val docFile = readFileFolder("docs")
+            registry.addResourceHandler("/data/**")
+                .addResourceLocations("file:" + parentFile.absolutePath)
+            registry.addResourceHandler("/docs/**")
+                .addResourceLocations("file:" + docFile.absolutePath)
+                .addResourceLocations("classpath:/docs/")
+            registry.addResourceHandler("/docs/**")
+                .addResourceLocations(
+                    "file:" + parentFile.absolutePath,
+                    "classpath:/templates/",
+                    "classpath:/docs/",
+                    "file:" + parentFile.absolutePath,
+                    "file:" + docFile.absolutePath
+                )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun configureMessageConverters(converters: MutableList<HttpMessageConverter<*>?>) {

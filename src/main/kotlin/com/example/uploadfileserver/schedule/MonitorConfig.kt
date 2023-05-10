@@ -15,6 +15,8 @@ class MonitorConfig(
      */
     val msgTemplate: String = "",
     val templateCode: String = "",
+    val msgTemplates: MutableMap<String, MsgTemplate> = mutableMapOf(),
+    val templateCodes: MutableMap<String, String> = mutableMapOf(),
     val signName: String = "",
     val accessKeyId: String = "",
     val accessKeySecret: String = "",
@@ -23,3 +25,5 @@ class MonitorConfig(
     val isSendMessage: Boolean = true
 ) {
 }
+
+class MsgTemplate(val title: String = "", val content: String = "")

@@ -13,4 +13,8 @@ abstract class AbsSendMessageProcessor : ISendMessage {
             .build())
 
     }
+    abstract val serverType: String
+    protected fun isSendData(type: String): Boolean {
+        return type.isEmpty() || type.contains(serverType)
+    }
 }

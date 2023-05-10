@@ -1,5 +1,6 @@
 package com.example.uploadfileserver.schedule
 
+import com.example.uploadfileserver.RmsMessageData
 import com.example.uploadfileserver.UploadFileServerApplication.Companion.readFile
 import com.example.uploadfileserver.Utils
 import com.example.uploadfileserver.eLog
@@ -191,6 +192,23 @@ class AppMonitorScheduledTasks {
             return
         }
         scheduleTask(jsonData)
+    }
+
+    fun onPushMessage(sendType: String, key: String, project: String, message: RmsMessageData) {
+        if (jsonData.isEmpty()) {
+            runInvalidJsonData {
+                iLog { "MonitorScheduledTasks>>读取配置文件成功" }
+                onPushMessageTask(sendType, key, project, message)
+            }
+            return
+        }
+        onPushMessageTask(sendType, key, project, message)
+    }
+
+    fun onPushMessageTask(sendType: String, key: String, project: String, message: RmsMessageData) {
+        poolExecutor.execute {
+            ISendMessage.postMessage(sendType, key, project, monitorConfig, message)
+        }
     }
 }
 

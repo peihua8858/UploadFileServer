@@ -36,6 +36,8 @@ interface ISendMessage {
         plat: String
     )
 
+    fun onPushMessage(sendType: String, key: String, project: String, monitorConfig: MonitorConfig, messageData: Any)
+
     companion object {
         private val processors = mutableListOf<ISendMessage>()
 
@@ -43,6 +45,19 @@ interface ISendMessage {
             processors.add(AlibabaSmsMessageProcessor())
             processors.add(WxBotMessageProcessor())
             processors.add(WxSmsMessageProcessor())
+        }
+
+        @JvmStatic
+        fun postMessage(
+            sendType: String,
+            key: String,
+            project: String,
+            monitorConfig: MonitorConfig,
+            messageData: Any
+        ) {
+            for (processor in processors) {
+                processor.onPushMessage(sendType, key, project, monitorConfig, messageData)
+            }
         }
 
         @JvmStatic
@@ -61,9 +76,9 @@ interface ISendMessage {
                 errorRate, errorMsg,
                 apiDesc
             )
-            LogWebSocket.sendMessage(MessageResponse.msg<String>(1,message))
+            LogWebSocket.sendMessage(MessageResponse.msg<String>(1, message))
             for (processor in processors) {
-                processor.onSendMessage(project,monitorConfig, title, errorRate, errorMsg, apiDesc, plat)
+                processor.onSendMessage(project, monitorConfig, title, errorRate, errorMsg, apiDesc, plat)
             }
         }
     }

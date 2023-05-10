@@ -3,6 +3,7 @@ package com.example.uploadfileserver.schedule.processor
 import com.example.uploadfileserver.eLog
 import com.example.uploadfileserver.http.HttpMethod
 import com.example.uploadfileserver.iLog
+import com.example.uploadfileserver.messageFormat
 import com.example.uploadfileserver.schedule.AbstractOkCallback
 import com.example.uploadfileserver.schedule.MonitorConfig
 import com.fz.common.collections.splicing
@@ -16,6 +17,8 @@ import java.text.MessageFormat
  * @version 1.0
  */
 class WxSmsMessageProcessor : AbsSendMessageProcessor() {
+    override val serverType: String
+        get() = "2"
 
     override fun onSendMessage(
         project: String,
@@ -25,6 +28,40 @@ class WxSmsMessageProcessor : AbsSendMessageProcessor() {
         errorMsg: String,
         apiDesc: String,
         plat: String
+    ) {
+        //"{0}接口错误率{1}，错误信息:{2}，涉及接口{3}，可能线上生产环境已出现故障,请立即处理！"
+        val message = MessageFormat.format(
+            monitorConfig.msgTemplate,
+            "",
+            errorRate, errorMsg,
+            apiDesc
+        )
+        sendMessage(monitorConfig, project, title, message)
+    }
+
+    override fun onPushMessage(
+        sendType: String,
+        key: String,
+        project: String,
+        monitorConfig: MonitorConfig,
+        messageData: Any
+    ) {
+        if (isSendData(sendType)) {
+            //"{0}接口错误率{1}，错误信息:{2}，涉及接口{3}，可能线上生产环境已出现故障,请立即处理！"
+            val msgTemplate = monitorConfig.msgTemplates[key] ?: return
+            val msgContent = msgTemplate.content
+            val msgTitle = msgTemplate.title
+            val message = msgContent.messageFormat(messageData)
+            val title = msgTitle.messageFormat(messageData)
+            sendMessage(monitorConfig, project, title, message)
+        }
+    }
+
+    private fun sendMessage(
+        monitorConfig: MonitorConfig,
+        project: String,
+        title: String,
+        message: String
     ) {
         val msgCenter = monitorConfig.msgCenter
         val jobNumbers = monitorConfig.phoneNumbers[project]
@@ -37,18 +74,11 @@ class WxSmsMessageProcessor : AbsSendMessageProcessor() {
             return
         }
         //"{0}接口错误率{1}，错误信息:{2}，涉及接口{3}，可能线上生产环境已出现故障,请立即处理！"
-        val message = MessageFormat.format(
-            monitorConfig.msgTemplate,
-            "",
-            errorRate, errorMsg,
-            apiDesc
-        )
-
         val data = mutableMapOf<String, String>()
         data["channel"] = "vv"
         data["to"] = jobNumbers.splicing(",") { it.jobNumber.ifEmpty { null } }
-//        data["to"] = "602028,610672"
-        data["title"] = "$title 接口异常提醒"
+        //        data["to"] = "602028,610672"
+        data["title"] = title
         data["content"] = message
         val datas = mutableListOf<MutableMap<String, String>>()
         datas.add(data)
@@ -57,9 +87,9 @@ class WxSmsMessageProcessor : AbsSendMessageProcessor() {
         params["password"] = msgCenter.password
         params["api_key"] = msgCenter.apiKey
         params["data"] = datas
-        val content = Gson().toJson(params)
-        println(content)
-        httpPoxy.sendRequest(HttpMethod.POST, msgCenter.smsUrl, content, object : AbstractOkCallback<String>() {
+        val result = Gson().toJson(params)
+        println(result)
+        httpPoxy.sendRequest(HttpMethod.POST, msgCenter.smsUrl, result, object : AbstractOkCallback<String>() {
             override fun onSuccess(response: String?) {
                 iLog { "MonitorScheduledTasks>>发送企业微信Sms消息成功：$response" }
             }

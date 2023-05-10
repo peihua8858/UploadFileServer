@@ -25,12 +25,12 @@ class UploadFileServerApplication {
         }
 
         @JvmStatic
-        fun Any.readJarFolder(): File {
-            return javaClass.readJarFolder()
+        fun readJarFolder(): File {
+            return UploadFileServerApplication::class.java.readJarFolder()
         }
 
         @JvmStatic
-        fun Any.readRootFileFolder(): File {
+        fun readRootFileFolder(): File {
             val file = File(readJarFolder(), ROOT_FILE)
             if (!file.exists()) {
                 file.mkdirs()
@@ -39,7 +39,7 @@ class UploadFileServerApplication {
         }
 
         @JvmStatic
-        fun Any.readFileFolder(folderName: String): File {
+        fun readFileFolder(folderName: String): File {
             val file = File(readRootFileFolder(), folderName)
             if (!file.exists()) {
                 file.mkdirs()
@@ -48,7 +48,7 @@ class UploadFileServerApplication {
         }
 
         @JvmStatic
-        fun Any.readFile(fileName: String): File {
+        fun readFile(fileName: String): File {
             return File(readRootFileFolder(), fileName)
         }
     }

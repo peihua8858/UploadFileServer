@@ -41,7 +41,7 @@ object AliyunSmsClient {
      * @date 2022/4/25 16:34
      * @version 1.0
      */
-    fun sendMessage(phoneNumbers: String, params: SmsTemplateParams) {
+    fun sendMessage(phoneNumbers: String, params: SmsTemplateParams, message: Any) {
         if (params.accessKeyId.isEmpty() || params.accessKeySecret.isEmpty()) {
             val e = RuntimeException("accessKeyId or accessKeySecret is empty.")
             eLog(e) { "accessKeyId or accessKeySecret is empty." }
@@ -58,9 +58,9 @@ object AliyunSmsClient {
         sendSmsRequest.setPhoneNumbers(phoneNumbers)
         sendSmsRequest.setSignName(params.signName)
         sendSmsRequest.setTemplateCode(params.templateCode)
-        sendSmsRequest.setTemplateParam(params.toString())
+        sendSmsRequest.setTemplateParam(message.toString())
         val resp = client.sendSms(sendSmsRequest)
-        iLog{ Common.toJSONString(TeaModel.buildMap(resp)) }
+        iLog { Common.toJSONString(TeaModel.buildMap(resp)) }
     }
 }
 
@@ -81,24 +81,5 @@ data class SmsTemplateParams(
      * 短信签名
      */
     val signName: String,
-    /**
-     * 短信模板参数项目名称
-     */
-    val projectName: String,
-    /**
-     * 短信模板参数错误率
-     */
-    val errorRate: String,
-    /**
-     * 短信模板参数错误信息
-     */
-    val errorMsg: String,
-    /**
-     * 短信模板参数涉及接口
-     */
-    val plat: String
 ) {
-    override fun toString(): String {
-        return "{'projectName':'$projectName','errorRate':'$errorRate','errorMsg':'$errorMsg','plat':'$plat'}"
-    }
 }

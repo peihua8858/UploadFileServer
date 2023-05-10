@@ -56,20 +56,20 @@ data class ResponsePathConfig(
     /**
      * 请求ID
      */
-    val requestId: String,
+    val requestId: String = "",
     /**
      * 匹配数
      */
-    val matchedNum: String,
+    val matchedNum: String = "",
     /**
      * 结果码
      */
-    val resultCode: String,
+    val resultCode: String = "",
     /**
      * 数据结果集路径
      */
-    val resultPatch: String
-): Serializable
+    val resultPatch: String = ""
+) : Serializable
 
 data class TasksResponse(
     val code: Int,
@@ -78,5 +78,5 @@ data class TasksResponse(
     val response: ResponseResult? = null
 )
 
-data class PhoneNumber(val phoneNumber: String, val name: String,val jobNumber:String) : Serializable
+data class PhoneNumber(val phoneNumber: String, val name: String, val jobNumber: String) : Serializable
 data class ResponseResult(val requestId: String, val resultNum: Int, val resultCode: Int, val message: String)

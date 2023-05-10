@@ -15,4 +15,9 @@ class MainController {
     fun logcat(): String {
         return "logcat.html"
     }
+
+    @RequestMapping("docs")
+    fun doc(): String {
+        return "docs/api.html"
+    }
 }

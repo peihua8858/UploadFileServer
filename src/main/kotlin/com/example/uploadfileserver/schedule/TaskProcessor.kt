@@ -5,8 +5,7 @@ import com.example.uploadfileserver.eLog
 import com.example.uploadfileserver.http.CodeException
 import com.example.uploadfileserver.http.OkHttpProxy
 import com.example.uploadfileserver.iLog
-import com.fz.common.collections.isNonEmpty
-import com.fz.common.map.isNonEmpty
+import com.fz.common.array.isNonEmpty
 import com.fz.common.text.isNonEmpty
 import com.fz.common.utils.toInteger
 import okhttp3.OkHttpClient
@@ -26,7 +25,7 @@ class TaskProcessor(private val monitorConfig: MonitorConfig) {
 
     fun runDataProcess(jsonDatas: Map<String, MutableList<MonitorData>>) {
         if (jsonDatas.isEmpty()) {
-            eLog {"MonitorScheduledTasks>>解析数据为空。"}
+            eLog { "MonitorScheduledTasks>>解析数据为空。" }
             return
         }
         jsonDatas.forEach {
@@ -46,7 +45,7 @@ class TaskProcessor(private val monitorConfig: MonitorConfig) {
             val responses = itemResponses.value
             val resultSize = responses.size
             if (dataSize == 0 || resultSize == 0) {
-                iLog {"MonitorScheduledTasks>>解析数据为空。"}
+                iLog { "MonitorScheduledTasks>>解析数据为空。" }
                 return@forEach
             }
             val apiDescSb = StringBuilder()
@@ -131,7 +130,7 @@ class TaskProcessor(private val monitorConfig: MonitorConfig) {
         params: MonitorData
     ) {
         val url = addTime(params.url, params.isPenetrateCache)
-        iLog {"MonitorScheduledTasks>>开始请求：$url"}
+        iLog { "MonitorScheduledTasks>>开始请求：$url" }
         val response = if (isDebug) {
             val exception = codes[Random.nextInt(codes.size)]
             TasksResponse(exception.code, exception.message ?: "", params)
@@ -149,7 +148,7 @@ class TaskProcessor(private val monitorConfig: MonitorConfig) {
 
     private fun requestApi(url: String, params: MonitorData): TasksResponse? {
         val response = requestHttp(url, params)
-        iLog {"MonitorScheduledTasks>>请求结果：code：${response.code},message：${response.message}"}
+        iLog { "MonitorScheduledTasks>>请求结果：code：${response.code},message：${response.message}" }
         if (response.isSuccessful) {
             val patch = params.patch
             if (patch != null) {
@@ -179,13 +178,21 @@ class TaskProcessor(private val monitorConfig: MonitorConfig) {
         val resultCode = processNodePath(map, resultCodeKey).toInteger(-1)
         val requestId = processNodePath(map, requestIdKey).toString()
         val matchNum = processNodePath(map, matchNumKey).toInteger()
-        val result = processNodePath(map, resultPatchKey)
-        if ((result is List<*> && result.isNonEmpty()) || (result is Map<*, *> && result.isNonEmpty())) {
-            return null
-        } else if (result != null) {
+        val patchArray = resultPatchKey.split(",")
+        if (patchArray.isEmpty()) {
             return null
         }
-        return ResponseResult(requestId, matchNum, resultCode, "响应数据结果'$resultPatchKey' 为空，请求ID：$requestId")
+        var errorResultPatch = ""
+        for ((index, item) in patchArray.withIndex()) {
+            val result = processNodePath(map, item)
+            if (result == null || (result is List<*> && result.isEmpty()) || (result is Map<*, *> && result.isEmpty())) {
+                errorResultPatch += item
+                if (index < patchArray.size - 1) {
+                    errorResultPatch += ","
+                }
+            }
+        }
+        return ResponseResult(requestId, matchNum, resultCode, "响应数据结果'$errorResultPatch' 为空，请求ID：$requestId")
     }
 
     private fun requestHttp(url: String, params: MonitorData): Response {
@@ -210,12 +217,14 @@ class TaskProcessor(private val monitorConfig: MonitorConfig) {
     private fun processNodePath(map: Map<String, Any>, path: String): Any? {
         var node: Any? = map
         val pah = path.split("\\.".toRegex()).toTypedArray()
-        for (p in pah) {
-            node = if (p.startsWith("[")) {
-                val index = p.substring(1, p.length - 1).toInt()
-                (node as? List<Any>?)?.get(index)
-            } else {
-                (node as? Map<String, Any>?)?.get(p)
+        if (pah.isNonEmpty()) {
+            for (p in pah) {
+                node = if (p.startsWith("[")) {
+                    val index = p.substring(1, p.length - 1).toInt()
+                    (node as? List<Any>?)?.get(index)
+                } else {
+                    (node as? Map<String, Any>?)?.get(p)
+                }
             }
         }
         return node

@@ -3,6 +3,7 @@ package com.example.uploadfileserver.schedule.processor
 import com.example.uploadfileserver.eLog
 import com.example.uploadfileserver.http.HttpMethod
 import com.example.uploadfileserver.iLog
+import com.example.uploadfileserver.messageFormat
 import com.example.uploadfileserver.schedule.AbstractOkCallback
 import com.example.uploadfileserver.schedule.MonitorConfig
 import com.google.gson.Gson
@@ -15,10 +16,9 @@ import java.text.MessageFormat
  * @version 1.0
  */
 class WxBotMessageProcessor : AbsSendMessageProcessor() {
-    init {
-        val MESSAGE_TEMPLATE = "{0}接口错误率{1}，错误信息:{2}，涉及接口{3}，可能线上生产环境已出现故障,请立即处理！"
+    override val serverType: String
+        get() = "3"
 
-    }
     override fun onSendMessage(
         project:String,
         monitorConfig: MonitorConfig,
@@ -36,6 +36,23 @@ class WxBotMessageProcessor : AbsSendMessageProcessor() {
             apiDesc
         )
         sendBotMessage(monitorConfig,content)
+    }
+
+
+    override fun onPushMessage(
+        sendType: String,
+        key: String,
+        project: String,
+        monitorConfig: MonitorConfig,
+        messageData: Any
+    ) {
+        if (isSendData(sendType)) {
+            //"{0}接口错误率{1}，错误信息:{2}，涉及接口{3}，可能线上生产环境已出现故障,请立即处理！"
+            val msgTemplate = monitorConfig.msgTemplates[key] ?: return
+            val msgContent = msgTemplate.content
+            val content = msgContent.messageFormat(messageData)
+            sendBotMessage(monitorConfig, content)
+        }
     }
 
    private fun sendBotMessage(monitorConfig: MonitorConfig, message: String) {
