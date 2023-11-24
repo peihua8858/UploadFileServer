@@ -22,7 +22,7 @@ plugins {
 }
 
 group = "com.example"
-version = "0.0.1"
+version = ""
 java.sourceCompatibility = JavaVersion.VERSION_11
 
 repositories {
@@ -40,10 +40,6 @@ jar {
     from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
 }
 
-bootJar {
-    baseName='MonitorService'
-    mainClass = 'com.example.uploadfileserver.UploadFileServerApplication'
-}
 //extra["springCloudVersion"] = "2021.0.4"
 //extra["awsSpringVersion"]= "2.4.2"
 dependencies {
@@ -51,6 +47,7 @@ dependencies {
 //    implementation("org.springframework.boot:spring-boot-starter-security")
 //    implementation("de.codecentric:spring-boot-admin-starter-client:2.7.7")
 //    implementation("de.codecentric:spring-boot-admin-starter-server:2.7.5")
+//    implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
@@ -59,18 +56,22 @@ dependencies {
     // https://mvnrepository.com/artifact/com.amazonaws/aws-java-sdk
     implementation('com.amazonaws:aws-java-sdk:1.12.429')
     implementation('com.google.code.gson:gson:2.10.1')
-    implementation ("com.squareup.okhttp3:okhttp:4.10.0")
-    implementation ('com.squareup.okio:okio:3.2.0')
-    implementation ("com.github.peihua8858:KotlinUtil:1.0.1-beta1")
-    implementation ("com.github.peihua8858:GsonAdapter-java:1.0.2")
+    implementation("com.squareup.okhttp3:okhttp:4.10.0")
+    implementation('com.squareup.okio:okio:3.2.0')
+    implementation("com.github.peihua8858:KotlinUtil:1.0.1-beta1")
+    implementation("com.github.peihua8858:GsonAdapter-java:1.0.2")
+//    implementation('mysql:mysql-connector-java:8.0.33')
+//    implementation('com.h2database:h2:2.1.214')
+//    implementation('com.baomidou:mybatis-plus-boot-starter:3.5.3.1')
+//    implementation('com.baomidou:mybatis-plus:3.5.3.1')
     //阿里云短信群发sdk
-    implementation ('com.aliyun:aliyun-java-sdk-core:4.6.3')
-    implementation ('com.aliyun:dysmsapi20170525:2.0.23')
+    implementation('com.aliyun:aliyun-java-sdk-core:4.6.3')
+    implementation('com.aliyun:dysmsapi20170525:2.0.23')
     implementation('commons-io:commons-io:2.11.0')
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
+    implementation('org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1')
     implementation 'org.yaml:snakeyaml:2.0'
     implementation 'com.fasterxml.jackson.core:jackson-core:2.14.3'
-    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.14.3'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.15.1'
     implementation('com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.14.3')
     testImplementation 'com.github.shalousun:smart-doc:2.6.8'
 //    implementation("org.mitre.dsmiley.httpproxy:smiley-http-proxy-servlet:1.12.1")
@@ -107,3 +108,23 @@ smartdoc {
 //tasks.withType<Test> {
 //    useJUnitPlatform()
 //}
+
+
+task bootCopyLibs(type:Copy){
+    from configurations.compileClasspath
+    into "$buildDir/libs/lib"
+}
+task bootClearLibs(type:Delete){
+    delete "$buildDir/libs/lib"
+}
+bootJar {
+    baseName = 'MonitorService'
+    mainClass = 'com.example.uploadfileserver.UploadFileServerApplication'
+    excludes =["*.jar"]
+    dependsOn bootClearLibs
+    dependsOn bootCopyLibs
+    manifest {
+        attributes "Manifest-Version": 1.0,
+                'Class-Path':configurations.compileClasspath.files.collect{"lib/$it.name"}.join(" ")
+    }
+}

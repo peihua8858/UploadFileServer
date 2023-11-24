@@ -6,17 +6,15 @@ import com.example.uploadfileserver.Utils
 import com.example.uploadfileserver.eLog
 import com.example.uploadfileserver.iLog
 import com.fz.common.array.isNonEmpty
-import com.fz.common.map.copyOfMapList
 import com.google.gson.reflect.TypeToken
 import com.peihua8858.GsonFactory
 import kotlinx.coroutines.*
 import org.apache.commons.io.FileUtils
+import org.apache.tomcat.util.collections.CaseInsensitiveKeyMap
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.io.File
 import java.util.*
-import java.util.concurrent.ScheduledThreadPoolExecutor
-import kotlin.concurrent.thread
 
 
 /**
@@ -29,7 +27,7 @@ import kotlin.concurrent.thread
 @Component
 class AppMonitorScheduledTasks {
     private val lock: Any = Any()
-    private val jsonData = mutableMapOf<String, MutableMap<String, MutableList<MonitorData>>>()
+    private val mJsonData = mutableMapOf<String, MutableMap<String, MutableList<MonitorData>>>()
 
     private val phoneNumbers = mutableMapOf<String, MutableList<PhoneNumber>>()
     private var loadingJsonData = false
@@ -37,7 +35,6 @@ class AppMonitorScheduledTasks {
     }
     private val jsonDataToken = object : TypeToken<Map<String, MutableList<MonitorData>>>() {
     }
-    private val poolExecutor = ScheduledThreadPoolExecutor(5)
     private var monitorConfig: MonitorConfig = MonitorConfig()
 
     companion object {
@@ -51,18 +48,18 @@ class AppMonitorScheduledTasks {
             }
             try {
                 loadingJsonData = true
-                jsonData.clear()
+                mJsonData.clear()
                 phoneNumbers.clear()
                 phoneNumbers.putAll(parseJson("phone_numbers_data", phoneNumberToken))
                 monitorConfig = readNewConfig()
                 monitorConfig.phoneNumbers = phoneNumbers
                 parseJsonData()
                 loadingJsonData = false
-                callback(jsonData)
+                callback(mJsonData)
             } catch (e: Throwable) {
                 //异常清除数据，下次重新读取
                 phoneNumbers.clear()
-                jsonData.clear()
+                mJsonData.clear()
                 loadingJsonData = false
                 e.printStackTrace()
 //                eLog(e) { "MonitorScheduledTasks>>读取配置文件失败。" }
@@ -80,7 +77,7 @@ class AppMonitorScheduledTasks {
                 jsonData[file.nameWithoutExtension] = result
             }
         }
-        this.jsonData.putAll(jsonData)
+        this.mJsonData.putAll(jsonData)
     }
 
     private fun readNewConfig(): MonitorConfig {
@@ -143,25 +140,24 @@ class AppMonitorScheduledTasks {
     }
 
     fun scheduleTask(jsonData: MutableMap<String, MutableMap<String, MutableList<MonitorData>>>) {
-        jsonData.forEach { (t, json) ->
-            scheduleTask(t, json)
+        try {
+            val tempJsonData = try {
+                jsonData.toMutableMap()
+            } catch (e: Exception) {
+                jsonData
+            } ?: return
+            val ignoreCaseJsonData = CaseInsensitiveKeyMap<MutableMap<String, MutableList<MonitorData>>>()
+            ignoreCaseJsonData.putAll(tempJsonData)
+            ignoreCaseJsonData.forEach { (t, json) ->
+                iLog { "MonitorScheduledTasks>>start task $t" }
+                iLog { "MonitorScheduledTasks>>job start" }
+                TaskProcessor(monitorConfig).runDataProcess(json)
+                iLog { "MonitorScheduledTasks>>job Done>>>" }
+                iLog { "MonitorScheduledTasks>>end task $t" }
+            }
+        } catch (e: Exception) {
+           e.printStackTrace()
         }
-    }
-
-    fun scheduleTask(taskName: String, jsonData: MutableMap<String, MutableList<MonitorData>>) {
-        poolExecutor.execute {
-            val tempJsonData = jsonData
-            iLog { "MonitorScheduledTasks>>start task $taskName" }
-            val data = tempJsonData.copyOfMapList()
-            runTaskProcessor(data)
-            iLog { "MonitorScheduledTasks>>end task $taskName" }
-        }
-    }
-
-    fun runTaskProcessor(data: Map<String, MutableList<MonitorData>>) = thread {
-        iLog { "MonitorScheduledTasks>>job start" }
-        TaskProcessor(monitorConfig).runDataProcess(data)
-        iLog { "MonitorScheduledTasks>>job Done>>>" }
     }
 
     /**
@@ -170,8 +166,12 @@ class AppMonitorScheduledTasks {
      */
     @Scheduled(cron = "0 */12 * ? * *")
     fun runInvalidJsonData() {
-        runInvalidJsonData {
-            iLog { "MonitorScheduledTasks>>读取配置文件成功" }
+        try {
+            runInvalidJsonData {
+                iLog { "MonitorScheduledTasks>>读取配置文件成功" }
+            }
+        } catch (e: Throwable) {
+            iLog { "MonitorScheduledTasks>>读取配置文件异常" + e.stackTraceToString() }
         }
     }
 
@@ -184,31 +184,37 @@ class AppMonitorScheduledTasks {
 //    @Scheduled(cron = "0/10 * * * * *")
     @Scheduled(cron = "0 */5 * ? * *")
     fun runMonitorTask() {
-        if (jsonData.isEmpty()) {
-            runInvalidJsonData {
-                iLog { "MonitorScheduledTasks>>读取配置文件成功" }
-                scheduleTask(it)
+        try {
+            if (mJsonData.isEmpty()) {
+                runInvalidJsonData {
+                    iLog { "MonitorScheduledTasks>>读取配置文件成功" }
+                    scheduleTask(it)
+                }
+                return
             }
-            return
+            scheduleTask(mJsonData)
+        } catch (e: Throwable) {
+            iLog { "MonitorScheduledTasks>>读取配置文件异常" + e.stackTraceToString() }
         }
-        scheduleTask(jsonData)
     }
 
     fun onPushMessage(sendType: String, key: String, project: String, message: RmsMessageData) {
-        if (jsonData.isEmpty()) {
-            runInvalidJsonData {
-                iLog { "MonitorScheduledTasks>>读取配置文件成功" }
-                onPushMessageTask(sendType, key, project, message)
+        try {
+            if (phoneNumbers.isEmpty()) {
+                runInvalidJsonData {
+                    iLog { "MonitorScheduledTasks>>读取配置文件成功" }
+                    onPushMessageTask(sendType, key, project, message)
+                }
+                return
             }
-            return
+            onPushMessageTask(sendType, key, project, message)
+        } catch (e: Throwable) {
+            iLog { "MonitorScheduledTasks>>读取配置文件异常" + e.stackTraceToString() }
         }
-        onPushMessageTask(sendType, key, project, message)
     }
 
     fun onPushMessageTask(sendType: String, key: String, project: String, message: RmsMessageData) {
-        poolExecutor.execute {
-            ISendMessage.postMessage(sendType, key, project, monitorConfig, message)
-        }
+        ISendMessage.postMessage(sendType, key, project, monitorConfig, message)
     }
 }
 

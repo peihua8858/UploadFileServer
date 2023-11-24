@@ -4,8 +4,9 @@ import com.example.uploadfileserver.SiteMessageData
 import com.example.uploadfileserver.eLog
 import com.example.uploadfileserver.schedule.AliyunSmsClient
 import com.example.uploadfileserver.schedule.MonitorConfig
+import com.example.uploadfileserver.schedule.PhoneNumber
 import com.example.uploadfileserver.schedule.SmsTemplateParams
-import com.fz.common.map.deepClone
+import org.apache.tomcat.util.collections.CaseInsensitiveKeyMap
 
 /**
  * 阿里巴巴 短信发送器
@@ -45,23 +46,28 @@ class AlibabaSmsMessageProcessor : AbsSendMessageProcessor() {
         monitorConfig: MonitorConfig,
         messageData: Any
     ) {
-        val templateCode = monitorConfig.templateCodes[key]
-        if (templateCode.isNullOrEmpty()) {
-            return
+        try {
+            val templateCode = monitorConfig.templateCodes[key]
+            if (templateCode.isNullOrEmpty()) {
+                return
+            }
+            //发送短信
+            sendSmsMessage(
+                sendType,
+                monitorConfig,
+                project,
+                SmsTemplateParams(
+                    monitorConfig.accessKeyId,
+                    monitorConfig.accessKeySecret,
+                    templateCode,
+                    monitorConfig.signName
+                ),
+                messageData
+            )
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            eLog {"MonitorScheduledTasks>>"+e.stackTraceToString()}
         }
-        //发送短信
-        sendSmsMessage(
-            sendType,
-            monitorConfig,
-            project,
-            SmsTemplateParams(
-                monitorConfig.accessKeyId,
-                monitorConfig.accessKeySecret,
-                templateCode,
-                monitorConfig.signName
-            ),
-            messageData
-        )
     }
 
     private fun sendSmsMessage(
@@ -72,12 +78,19 @@ class AlibabaSmsMessageProcessor : AbsSendMessageProcessor() {
         message: Any
     ) {
         if (isSendData(sendType)) {
-            val phoneNumbers = monitorConfig.phoneNumbers.deepClone()
+            val phoneNumbers = try {
+                monitorConfig.phoneNumbers.toMutableMap()
+            } catch (e: Exception) {
+                eLog {"MonitorScheduledTasks>>"+e.stackTraceToString()}
+                monitorConfig.phoneNumbers
+            }
             if (phoneNumbers.isNullOrEmpty() || !monitorConfig.isSendMessage) {
                 eLog { "MonitorScheduledTasks>>" + if (phoneNumbers.isNullOrEmpty()) "未设置联系人列表为空!" else "当前是Debug" }
                 return
             }
-            val result = phoneNumbers[project]
+            val ignoreCasePhoneNumbers = CaseInsensitiveKeyMap<MutableList<PhoneNumber>>()
+            ignoreCasePhoneNumbers.putAll(phoneNumbers)
+            val result = ignoreCasePhoneNumbers[project]
             if (result.isNullOrEmpty()) {
                 eLog { "MonitorScheduledTasks>>项目：$project 联系人列表为空!" }
                 return

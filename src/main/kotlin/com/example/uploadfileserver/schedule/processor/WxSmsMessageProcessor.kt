@@ -6,8 +6,10 @@ import com.example.uploadfileserver.iLog
 import com.example.uploadfileserver.messageFormat
 import com.example.uploadfileserver.schedule.AbstractOkCallback
 import com.example.uploadfileserver.schedule.MonitorConfig
+import com.example.uploadfileserver.schedule.PhoneNumber
 import com.fz.common.collections.splicing
 import com.google.gson.Gson
+import org.apache.tomcat.util.collections.CaseInsensitiveKeyMap
 import java.text.MessageFormat
 
 /**
@@ -46,14 +48,19 @@ class WxSmsMessageProcessor : AbsSendMessageProcessor() {
         monitorConfig: MonitorConfig,
         messageData: Any
     ) {
-        if (isSendData(sendType)) {
-            //"{0}接口错误率{1}，错误信息:{2}，涉及接口{3}，可能线上生产环境已出现故障,请立即处理！"
-            val msgTemplate = monitorConfig.msgTemplates[key] ?: return
-            val msgContent = msgTemplate.content
-            val msgTitle = msgTemplate.title
-            val message = msgContent.messageFormat(messageData)
-            val title = msgTitle.messageFormat(messageData)
-            sendMessage(monitorConfig, project, title, message)
+        try {
+            if (isSendData(sendType)) {
+                //"{0}接口错误率{1}，错误信息:{2}，涉及接口{3}，可能线上生产环境已出现故障,请立即处理！"
+                val msgTemplate = monitorConfig.msgTemplates[key] ?: return
+                val msgContent = msgTemplate.content
+                val msgTitle = msgTemplate.title
+                val message = msgContent.messageFormat(messageData)
+                val title = msgTitle.messageFormat(messageData)
+                sendMessage(monitorConfig, project, title, message)
+            }
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            eLog {"MonitorScheduledTasks>>"+e.stackTraceToString()}
         }
     }
 
@@ -64,13 +71,25 @@ class WxSmsMessageProcessor : AbsSendMessageProcessor() {
         message: String
     ) {
         val msgCenter = monitorConfig.msgCenter
-        val jobNumbers = monitorConfig.phoneNumbers[project]
-        if (msgCenter.smsUrl.isEmpty() || jobNumbers.isNullOrEmpty() || !monitorConfig.isSendMessage) {
+        val phoneNumbers = try {
+            monitorConfig.phoneNumbers.toMutableMap()
+        } catch (e: Exception) {
+            eLog {"MonitorScheduledTasks>>"+e.stackTraceToString()}
+            monitorConfig.phoneNumbers
+        }
+        if (msgCenter.smsUrl.isEmpty() || phoneNumbers.isNullOrEmpty() || !monitorConfig.isSendMessage) {
             eLog {
-                "MonitorScheduledTasks>>" + if (msgCenter.smsUrl.isEmpty()) "消息中心地址未配置!" else if (jobNumbers.isNullOrEmpty()) {
+                "MonitorScheduledTasks>>" + if (msgCenter.smsUrl.isEmpty()) "消息中心地址未配置!" else if (phoneNumbers.isNullOrEmpty()) {
                     "联系人未配置"
                 } else "当前是Debug"
             }
+            return
+        }
+        val ignoreCasePhoneNumbers = CaseInsensitiveKeyMap<MutableList<PhoneNumber>>()
+        ignoreCasePhoneNumbers.putAll(phoneNumbers)
+        val jobNumbers = ignoreCasePhoneNumbers[project]
+        if (jobNumbers.isNullOrEmpty()) {
+            eLog { "MonitorScheduledTasks>>项目：$project 联系人列表为空!" }
             return
         }
         //"{0}接口错误率{1}，错误信息:{2}，涉及接口{3}，可能线上生产环境已出现故障,请立即处理！"

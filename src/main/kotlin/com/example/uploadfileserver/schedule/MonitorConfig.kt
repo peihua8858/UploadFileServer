@@ -9,6 +9,7 @@ package com.example.uploadfileserver.schedule
 class MonitorConfig(
     val failRate: Double = 0.6,
     val failRates: MutableMap<String, Double> = mutableMapOf(),
+    val botUrls: MutableMap<String, String> = mutableMapOf(),
     val botUrl: String = "",
     /**
      * 企业微信消息模板
